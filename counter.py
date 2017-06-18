@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Ecexute it like this:
+# python counter.py 9009131337
+
 import struct
 from collections import namedtuple
 import itertools
