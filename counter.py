@@ -1,7 +1,4 @@
 #!/usr/bin/env python
-# Ecexute it like this:
-# python counter.py 9009131337
-
 import struct
 from collections import namedtuple
 import itertools
@@ -12,48 +9,52 @@ SUB = 1
 RECURSIVE = 2
 
 Register = namedtuple('Register', ['number', 'instruction', 'entry', 'left_next', 'right_next'])
+REGISTERS = None
+
+class Action:
+    pass
 
 def new_table(initial_value):
     return tuple([initial_value] + list(itertools.repeat(0, 25)))
 
-@functools.lru_cache(maxsize=1048576)
 def update_entry(table, entry, new_value):
     assert entry < len(table)
 
     return table[:entry] + (new_value,) + table[entry+1:]
 
-@functools.lru_cache(maxsize=33554432)
-def process_registers(registers, index, table):
-    while True:
-        if index >= len(registers):
-            return table
+def process_registers(index, table):
+    reg = REGISTERS[index]
 
-        reg = registers[index]
+    if reg.instruction == SUM:
+        table = update_entry(table, reg.entry, table[reg.entry] + 1)
+        return reg.left_next, table
 
-        if reg.instruction == SUM:
-            table = update_entry(table, reg.entry, table[reg.entry] + 1)
-            index = reg.left_next
-
-        elif reg.instruction == SUB:
-            if table[reg.entry] != 0:
-                table = update_entry(table, reg.entry, table[reg.entry] - 1)
-                index = reg.left_next
-            else:
-                index = reg.right_next
-
+    elif reg.instruction == SUB:
+        if table[reg.entry] != 0:
+            table = update_entry(table, reg.entry, table[reg.entry] - 1)
+            return reg.left_next, table
         else:
-            if reg.entry > 0:
-                new_table = process_registers(registers, reg.left_next, table)
+            return reg.right_next, table
 
-                for i in range(reg.entry):
-                    table = update_entry(table, i, new_table[i])
+    else:
+        if reg.entry > 0:
+            new_table = run_iterations(reg.left_next, table)
 
-            index = reg.right_next
+            for i in range(reg.entry):
+                table = update_entry(table, i, new_table[i])
 
+        return reg.right_next, table
+
+@functools.lru_cache(maxsize=1048576*1024)
+def run_iterations(index, table):
+    while index < len(REGISTERS):
+        index, table = process_registers(index, table)
+
+    return table
 
 if __name__ == '__main__':
     import sys
-    registers = (
+    REGISTERS = (
         Register(number=0, instruction=1, entry=0, left_next=1, right_next=2),
         Register(number=1, instruction=0, entry=1, left_next=0, right_next=0),
         Register(number=2, instruction=0, entry=2, left_next=3, right_next=0),
@@ -175,8 +176,6 @@ if __name__ == '__main__':
         Register(number=118, instruction=0, entry=0, left_next=117, right_next=0),
     )
 
-    print(process_registers(
-        registers=registers,
-        index=0,
-        table=new_table(int(sys.argv[1])),
-    ))
+    table = new_table(int(sys.argv[1]))
+    table = run_iterations(0, table)
+    print(table)
